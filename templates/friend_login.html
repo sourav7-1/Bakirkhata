@@ -2,8 +2,8 @@
 
 {% block content %}
 <div class="card login-card">
-  <h2>Friend access</h2>
-  <p>Enter your name and access code to view only your balance. This page never exposes any other account or friend data.</p>
+  <h2>Friend login</h2>
+  <p>Enter your name and code.</p>
   <form method="post" action="{{ url_for('friend_login') }}">
     <label for="name">Your name</label>
     <input id="name" name="name" type="text" placeholder="Enter your name" required>

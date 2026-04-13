@@ -1,64 +1,95 @@
-# Bank Loan Tracker
+# ZEN Bank Tracker
 
-A simple Python project to track money you and your friends exchange.
+A simple Flask-based money tracker to manage personal friend balances and payments.
+The app stores per-user friend data and supports both account login and limited friend access.
 
-## Features
+## What it does
 
-- Add friends
-- Record money you gave to a friend
-- Record money a friend returned to you
-- Record when a friend borrowed money from you
-- View current balances for each friend
-- See transaction history for a friend
-- Persist data in `data.json`
+- Create a secure user account
+- Add friends and save phone numbers
+- Track money given, returned, or borrowed
+- View live balance status per friend
+- Send quick reminder/balance messages
+- Friend access via a unique access code
 
-## Running the app
+## Tech stack
 
-### Option 1: Web UI
+- Python 3
+- Flask
+- Jinja2 templates
+- JSON file storage (`data.json`)
 
-1. Open a terminal in this folder.
-2. Install dependencies:
+## Setup
+
+1. Open a terminal inside this project folder.
+2. Install the dependency:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Run the Flask app:
+3. Run the app:
 
 ```bash
 python app.py
 ```
 
-4. Open `http://127.0.0.1:5000` in your browser.
-
-5. Log in with your portal credentials.
-
-   - ID: `ZEN`
-   - Password: `zen2026`
-
-6. To let a friend see only their own balance, send them the access code from the friend detail page and ask them to use the friend login link on your computer’s local network.
-
-   If you share the app with someone on the same Wi-Fi, use your computer’s LAN IP address instead of `127.0.0.1`, for example:
+4. Open your browser at:
 
 ```text
-http://192.168.x.y:5000/friend-login
+http://127.0.0.1:5000
 ```
 
-   The app now runs on all network interfaces so friends on your local network can open it.
+## Usage
 
-### Option 2: Command-line
+### Admin / owner login
 
-Run:
+- Click `Login` or `Sign up`
+- Existing owner credentials:
+  - Username: `ZEN`
+  - Password: `zen2026`
+
+### Register a new account
+
+- Go to `Sign up`
+- Create a username and password
+- You will get a private account with your own friend list
+
+### Friend access
+
+- Add a friend from your dashboard
+- Open the friend detail page and share the access code with them
+- Friend uses `Friend login` and enters their name + code
+- They only see their own balance and history
+
+## Notes
+
+- User accounts are isolated: one account cannot see another account's friends.
+- The app currently stores data in `data.json`.
+- For local network friend access, use your machine's LAN IP instead of `127.0.0.1`.
+
+## Optional command-line helper
+
+If you want a terminal-based balance helper, use:
 
 ```bash
 python bank_tracker.py
 ```
 
-## How it works
+## Screenshots
 
-- Positive balance means your friend owes you money.
-- Negative balance means you owe your friend money.
-- `give` means you gave money to the friend.
-- `receive` means the friend returned money to you.
-- `borrow` means the friend borrowed money from you.
-- Balances are updated from all recorded transactions.
+The app provides a clean login page, a private user dashboard with friend balances, and a friend-only portal with individual transaction history.
+
+> Add your own screenshots here once the app UI is ready.
+
+## Future improvements
+
+- Add a proper database backend (SQLite or PostgreSQL)
+- Improve authentication with email/password reset support
+- Add pagination and search for friends
+- Add export to CSV or PDF for transaction history
+- Add better mobile responsive layout
+
+## License
+
+Feel free to use and adapt this project for personal tracking.

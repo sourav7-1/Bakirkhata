@@ -110,8 +110,8 @@ body {
 }
 
 .login-card {
-  max-width: 520px;
-  margin: 0 auto;
+  max-width: 440px;
+  margin: 40px auto 0;
 }
 
 .reminder-card textarea {
