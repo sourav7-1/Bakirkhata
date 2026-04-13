@@ -32,14 +32,26 @@ def load_data():
     with open(DATA_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
 
+    migrated = False
     legacy_friends = data.pop("friends", None)
-    data.setdefault("users", {})
+    users = data.setdefault("users", {})
+
+    # Migrate legacy user records that were stored at the root level by older versions.
+    orphan_users = {k: v for k, v in list(data.items()) if k != "users" and isinstance(v, dict) and "password" in v}
+    for username, record in orphan_users.items():
+        users.setdefault(username, record)
+        data.pop(username, None)
+        migrated = True
 
     if legacy_friends:
-        default_user = data.setdefault(VALID_USERNAME, {"password": generate_password_hash(VALID_PASSWORD), "friends": {}})
+        default_user = users.setdefault(VALID_USERNAME, {"password": generate_password_hash(VALID_PASSWORD), "friends": {}})
         default_user.setdefault("friends", {}).update(legacy_friends)
+        migrated = True
 
-    for user in data["users"].values():
+    if migrated:
+        save_data(data)
+
+    for user in users.values():
         user.setdefault("friends", {})
         for friend in user.get("friends", {}).values():
             if "balance" not in friend:
