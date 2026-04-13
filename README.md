@@ -1,4 +1,4 @@
-# Bank Loan Tracker
+# Bondhu Loan Tracker
 
 A simple Python project to track money you and your friends exchange.
 
