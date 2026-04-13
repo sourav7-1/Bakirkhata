@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ZEN</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:400,500,600&display=swap">
+    <link rel="stylesheet" href="/static/style.css">
+  </head>
+  <body>
+    <div class="watermark">DEVALOP BY SOURAV — BETA VERSION</div>
+    <div class="page-shell">
+      <header class="page-header">
+        <div>
+          <h1>ZEN</h1>
+          <p>A calm portal for tracking money flow with friends.</p>
+        </div>
+        <div class="header-actions">
+          {% if logged_in %}
+            <span class="welcome-text">Signed in as {{ current_user }}</span>
+            <a class="button small" href="{{ url_for('logout') }}">Logout</a>
+          {% elif friend_logged_in %}
+            <span class="welcome-text">Signed in as {{ friend_user }}</span>
+            <a class="button small" href="{{ url_for('friend_logout') }}">Logout</a>
+          {% else %}
+            <a class="button small" href="{{ url_for('friend_login') }}">Friend login</a>
+            <a class="button small" href="{{ url_for('login') }}">Admin login</a>
+          {% endif %}
+        </div>
+      </header>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="alerts">
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      <main>
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        var copyBtn = document.getElementById('copyReminder');
+        if (copyBtn) {
+          copyBtn.addEventListener('click', function () {
+            var textarea = document.getElementById('reminderText');
+            if (textarea) {
+              textarea.select();
+              document.execCommand('copy');
+              copyBtn.textContent = 'Copied!';
+              setTimeout(function () {
+                copyBtn.textContent = 'Copy message';
+              }, 1800);
+            }
+          });
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card login-card">
+  <h2>Sign in to ZEN</h2>
+  <p>Enter your portal ID and password to access your friend balances.</p>
+  <form method="post" action="{{ url_for('login') }}">
+    <label for="username">Portal ID</label>
+    <input id="username" name="username" type="text" placeholder="ZEN" required>
+
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" placeholder="Enter password" required>
+
+    <button type="submit">Sign in</button>
+  </form>
+</div>
+{% endblock %}

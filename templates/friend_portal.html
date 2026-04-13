@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+  <div class="row-between">
+    <div>
+      <h2>Welcome, {{ name }}</h2>
+      <p>Your current balance is <strong>{{ "%.2f" | format(balance) }}</strong> — {{ status }}</p>
+    </div>
+    {% if friend.phone %}
+    <div>
+      <p>Phone: <strong>{{ friend.phone }}</strong></p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <h3>Transaction history</h3>
+  {% if friend.transactions %}
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Type</th>
+          <th>Amount</th>
+          <th>Purpose</th>
+          <th>Method</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for tx in friend.transactions %}
+          <tr>
+            <td>{{ tx.date }}</td>
+            <td>{{ tx.type }}</td>
+            <td>{{ "%.2f" | format(tx.amount) }}</td>
+            <td>{{ tx.purpose or tx.note or "-" }}</td>
+            <td>{{ tx.payment_method or "-" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>No transactions recorded yet.</p>
+  {% endif %}
+</div>
+
+<div class="card action-row">
+  <a class="button" href="{{ url_for('friend_logout') }}">Logout</a>
+</div>
+{% endblock %}

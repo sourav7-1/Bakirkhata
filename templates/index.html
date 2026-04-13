@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+  <h2>Friends</h2>
+  {% if friends %}
+    <table>
+      <thead>
+        <tr>
+          <th>Friend</th>
+          <th>Phone</th>
+          <th>Balance</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for friend in friends %}
+          <tr>
+            <td>{{ friend.name }}</td>
+            <td>{{ friend.phone or '-' }}</td>
+            <td>{{ "%.2f" | format(friend.balance) }}</td>
+            <td>{{ friend.status }}</td>
+            <td><a class="button small" href="{{ url_for('friend_detail', name=friend.name) }}">View</a></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>No friends yet. Add one below.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Add a Friend</h2>
+  <form action="{{ url_for('add_friend') }}" method="post">
+    <label for="name">Friend name</label>
+    <input id="name" name="name" type="text" placeholder="Enter name" required>
+    <label for="phone">Phone number</label>
+    <input id="phone" name="phone" type="tel" placeholder="e.g. +8801XXXXXXXXX">
+    <button type="submit">Add friend</button>
+  </form>
+</div>
+{% endblock %}
