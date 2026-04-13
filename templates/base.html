@@ -15,6 +15,7 @@
           <h1>ZEN</h1>
           <p>A calm portal for tracking money flow with friends.</p>
         </div>
+        {% block header_actions %}
         <div class="header-actions">
           {% if logged_in %}
             <span class="welcome-text">Signed in as {{ current_user }}</span>
@@ -24,9 +25,11 @@
             <a class="button small" href="{{ url_for('friend_logout') }}">Logout</a>
           {% else %}
             <a class="button small" href="{{ url_for('friend_login') }}">Friend login</a>
-            <a class="button small" href="{{ url_for('login') }}">Admin login</a>
+            <a class="button small" href="{{ url_for('login') }}">Login</a>
+            <a class="button small" href="{{ url_for('signup') }}">Sign up</a>
           {% endif %}
         </div>
+        {% endblock %}
       </header>
 
       {% with messages = get_flashed_messages(with_categories=true) %}

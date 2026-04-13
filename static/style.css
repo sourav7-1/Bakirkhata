@@ -12,6 +12,10 @@
   --shadow: rgba(0, 0, 0, 0.45);
 }
 
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -160,8 +164,11 @@ label {
 
 input,
 select,
-button {
+button,
+textarea {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   padding: 14px 16px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 14px;
@@ -196,6 +203,30 @@ button {
 button:hover {
   transform: translateY(-1px);
   box-shadow: 0 16px 30px rgba(255, 183, 36, 0.18);
+}
+
+.small-note {
+  margin-top: 28px;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.privacy-card {
+  border-left: 4px solid rgba(214, 177, 43, 0.9);
+  background: rgba(255, 215, 0, 0.06);
+  color: #f8f7f2;
+  padding: 18px 22px;
+  margin-bottom: 22px;
+  font-size: 0.98rem;
+}
+
+.small-note a {
+  color: var(--primary-strong);
+  text-decoration: none;
+}
+
+.small-note a:hover {
+  text-decoration: underline;
 }
 
 .button {

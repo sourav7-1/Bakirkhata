@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import os
 import secrets
@@ -6,11 +6,21 @@ import socket
 import string
 from functools import wraps
 from urllib.parse import quote_plus
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET", "change-this-secret")
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_USE_SIGNER=True,
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=2),
+)
+if os.getenv("FLASK_ENV") == "production":
+    app.config["SESSION_COOKIE_SECURE"] = True
+
 DATA_FILE = "data.json"
 VALID_USERNAME = "ZEN"
 VALID_PASSWORD = "zen2026"
@@ -18,22 +28,31 @@ VALID_PASSWORD = "zen2026"
 
 def load_data():
     if not os.path.exists(DATA_FILE):
-        return {"friends": {}}
+        return {"users": {}}
     with open(DATA_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    for friend in data.get("friends", {}).values():
-        if "balance" not in friend:
-            friend["balance"] = calculate_balance(friend)
-        if "phone" not in friend:
-            friend["phone"] = ""
-        if "access_code" not in friend:
-            friend["access_code"] = generate_access_code()
-        for tx in friend.get("transactions", []):
-            if "purpose" not in tx:
-                tx["purpose"] = tx.get("note", "")
-            if "payment_method" not in tx:
-                tx["payment_method"] = ""
+    legacy_friends = data.pop("friends", None)
+    data.setdefault("users", {})
+
+    if legacy_friends:
+        default_user = data.setdefault(VALID_USERNAME, {"password": generate_password_hash(VALID_PASSWORD), "friends": {}})
+        default_user.setdefault("friends", {}).update(legacy_friends)
+
+    for user in data["users"].values():
+        user.setdefault("friends", {})
+        for friend in user.get("friends", {}).values():
+            if "balance" not in friend:
+                friend["balance"] = calculate_balance(friend)
+            if "phone" not in friend:
+                friend["phone"] = ""
+            if "access_code" not in friend:
+                friend["access_code"] = generate_access_code()
+            for tx in friend.get("transactions", []):
+                if "purpose" not in tx:
+                    tx["purpose"] = tx.get("note", "")
+                if "payment_method" not in tx:
+                    tx["payment_method"] = ""
     return data
 
 
@@ -42,8 +61,32 @@ def save_data(data):
         json.dump(data, f, indent=2, ensure_ascii=False)
 
 
+def get_user_record(data, username, create=False):
+    user = data["users"].get(username)
+    if user is None and create:
+        user = data["users"][username] = {"password": "", "friends": {}}
+    if user is not None:
+        user.setdefault("friends", {})
+    return user
+
+
+def get_user_friend(data, username, name):
+    user = get_user_record(data, username)
+    if not user:
+        return None
+    return user["friends"].get(name)
+
+
+def find_friend_owner(data, name, code):
+    for owner, user in data.get("users", {}).items():
+        friend = user.get("friends", {}).get(name)
+        if friend and friend.get("access_code") == code:
+            return owner, friend
+    return None, None
+
+
 def is_logged_in():
-    return session.get("user") == VALID_USERNAME
+    return session.get("user") is not None
 
 
 def is_friend_logged_in():
@@ -112,18 +155,22 @@ def build_phone_link(channel, phone, message):
     return None
 
 
-def add_friend_to_data(data, name, phone=""):
-    data["friends"][name] = {
+def add_friend_to_data(data, username, name, phone=""):
+    user = get_user_record(data, username, create=True)
+    user["friends"][name] = {
         "transactions": [],
         "balance": 0.0,
         "phone": phone,
-        "access_code": generate_access_code(),
+        "access_code": generate_access_code(8),
     }
     save_data(data)
 
 
-def add_transaction(data, name, transaction_type, amount, purpose, payment_method):
-    friend = data["friends"][name]
+def add_transaction(data, username, name, transaction_type, amount, purpose, payment_method):
+    friend = get_user_friend(data, username, name)
+    if not friend:
+        return
+
     date_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     transaction = {
         "date": date_str,
@@ -147,8 +194,9 @@ def add_transaction(data, name, transaction_type, amount, purpose, payment_metho
 @login_required
 def index():
     data = load_data()
+    user = get_user_record(data, session["user"], create=True)
     friends = []
-    for name, friend in sorted(data["friends"].items()):
+    for name, friend in sorted(user["friends"].items()):
         friends.append({
             "name": name,
             "phone": friend.get("phone", ""),
@@ -168,11 +216,12 @@ def add_friend():
         return redirect(url_for("index"))
 
     data = load_data()
-    if name in data["friends"]:
+    user = get_user_record(data, session["user"], create=True)
+    if name in user["friends"]:
         flash("This friend already exists.", "error")
         return redirect(url_for("index"))
 
-    add_friend_to_data(data, name, phone)
+    add_friend_to_data(data, session["user"], name, phone)
     flash(f"Added friend '{name}'.", "success")
     return redirect(url_for("index"))
 
@@ -181,7 +230,7 @@ def add_friend():
 @login_required
 def friend_detail(name):
     data = load_data()
-    friend = data["friends"].get(name)
+    friend = get_user_friend(data, session["user"], name)
     if not friend:
         flash("Friend not found.", "error")
         return redirect(url_for("index"))
@@ -209,8 +258,10 @@ def friend_login():
         name = request.form.get("name", "").strip()
         code = request.form.get("code", "").strip().upper()
         data = load_data()
-        friend = data["friends"].get(name)
-        if friend and friend.get("access_code") == code:
+        owner, friend = find_friend_owner(data, name, code)
+        if friend:
+            session.permanent = True
+            session["friend_owner"] = owner
             session["friend_user"] = name
             flash("Friend access granted.", "success")
             return redirect(url_for("friend_portal"))
@@ -232,10 +283,12 @@ def friend_required(view):
 @app.route("/friend-portal")
 @friend_required
 def friend_portal():
-    name = session["friend_user"]
+    owner = session.get("friend_owner")
+    name = session.get("friend_user")
     data = load_data()
-    friend = data["friends"].get(name)
+    friend = data.get("users", {}).get(owner, {}).get("friends", {}).get(name)
     if not friend:
+        session.pop("friend_owner", None)
         session.pop("friend_user", None)
         return redirect(url_for("friend_login"))
 
@@ -252,6 +305,7 @@ def friend_portal():
 @app.route("/friend-logout")
 def friend_logout():
     session.pop("friend_user", None)
+    session.pop("friend_owner", None)
     flash("Friend logged out.", "success")
     return redirect(url_for("friend_login"))
 
@@ -260,7 +314,8 @@ def friend_logout():
 @login_required
 def add_friend_transaction(name):
     data = load_data()
-    if name not in data["friends"]:
+    friend = get_user_friend(data, session["user"], name)
+    if not friend:
         flash("Friend not found.", "error")
         return redirect(url_for("index"))
 
@@ -279,7 +334,7 @@ def add_friend_transaction(name):
         flash("Amount must be greater than zero.", "error")
         return redirect(url_for("friend_detail", name=name))
 
-    add_transaction(data, name, transaction_type, amount, purpose, payment_method)
+    add_transaction(data, session["user"], name, transaction_type, amount, purpose, payment_method)
 
     if transaction_type == "give":
         flash(f"Recorded that you gave {amount:.2f} to {name}.", "success")
@@ -295,8 +350,9 @@ def add_friend_transaction(name):
 @login_required
 def delete_friend(name):
     data = load_data()
-    if name in data["friends"]:
-        del data["friends"][name]
+    user = get_user_record(data, session["user"])
+    if user and name in user["friends"]:
+        del user["friends"][name]
         save_data(data)
         flash(f"Deleted friend '{name}'.", "success")
     else:
@@ -312,14 +368,62 @@ def login():
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "").strip()
-        if username == VALID_USERNAME and password == VALID_PASSWORD:
+        data = load_data()
+        user = data["users"].get(username)
+        valid_user = (username == VALID_USERNAME and password == VALID_PASSWORD) or (
+            user and check_password_hash(user["password"], password)
+        )
+
+        if valid_user:
+            session.permanent = True
             session["user"] = username
             flash("Login successful.", "success")
             return redirect(url_for("index"))
+
         flash("Invalid ID or password.", "error")
         return redirect(url_for("login"))
 
     return render_template("login.html")
+
+
+@app.route("/signup", methods=["GET", "POST"])
+def signup():
+    if is_logged_in():
+        return redirect(url_for("index"))
+
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "").strip()
+        confirm_password = request.form.get("confirm_password", "").strip()
+
+        if not username or not password:
+            flash("Please fill in both username and password.", "error")
+            return redirect(url_for("signup"))
+
+        if password != confirm_password:
+            flash("Passwords do not match.", "error")
+            return redirect(url_for("signup"))
+
+        if username == VALID_USERNAME:
+            flash("That username is reserved.", "error")
+            return redirect(url_for("signup"))
+
+        data = load_data()
+        if username in data["users"]:
+            flash("This username is already taken.", "error")
+            return redirect(url_for("signup"))
+
+        data["users"][username] = {
+            "password": generate_password_hash(password),
+            "friends": {}
+        }
+        save_data(data)
+        session.permanent = True
+        session["user"] = username
+        flash("Account created and logged in successfully.", "success")
+        return redirect(url_for("index"))
+
+    return render_template("signup.html")
 
 
 @app.route("/logout")
@@ -333,7 +437,7 @@ def logout():
 @login_required
 def send_reminder(name):
     data = load_data()
-    friend = data["friends"].get(name)
+    friend = get_user_friend(data, session["user"], name)
     if not friend:
         flash("Friend not found.", "error")
         return redirect(url_for("index"))
@@ -361,7 +465,7 @@ def send_reminder(name):
 @login_required
 def send_balance_update(name):
     data = load_data()
-    friend = data["friends"].get(name)
+    friend = get_user_friend(data, session["user"], name)
     if not friend:
         flash("Friend not found.", "error")
         return redirect(url_for("index"))
@@ -392,7 +496,7 @@ def send_balance_update(name):
 @login_required
 def send_via_phone(name, channel):
     data = load_data()
-    friend = data["friends"].get(name)
+    friend = get_user_friend(data, session["user"], name)
     if not friend:
         flash("Friend not found.", "error")
         return redirect(url_for("index"))
@@ -431,7 +535,7 @@ def send_via_phone(name, channel):
 @login_required
 def send_access_info(name):
     data = load_data()
-    friend = data["friends"].get(name)
+    friend = get_user_friend(data, session["user"], name)
     if not friend:
         flash("Friend not found.", "error")
         return redirect(url_for("index"))

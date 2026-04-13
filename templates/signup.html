@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block header_actions %}{% endblock %}
+
+{% block content %}
+<div class="card login-card">
+  <h2>Create your account</h2>
+  <p>Register now and create a secure personal portal. Your friends and transactions stay private to your account.</p>
+  <form method="post" action="{{ url_for('signup') }}">
+    <label for="username">Username</label>
+    <input id="username" name="username" type="text" placeholder="Choose a username" required>
+
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" placeholder="Choose a password" required>
+
+    <label for="confirm_password">Confirm Password</label>
+    <input id="confirm_password" name="confirm_password" type="password" placeholder="Re-enter password" required>
+
+    <button type="submit">Create account</button>
+  </form>
+  <p class="small-note">Already have an account? <a href="{{ url_for('login') }}">Sign in</a>.</p>
+</div>
+{% endblock %}
