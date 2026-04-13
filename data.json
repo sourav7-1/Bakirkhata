@@ -1,123 +1,126 @@
 {
-  "friends": {
-    "ANWARUL RAZZAQUE": {
-      "transactions": [
-        {
-          "date": "2026-04-11 16:42:17",
-          "type": "give",
-          "amount": 2000.0,
-          "note": "cash",
-          "purpose": "cash",
-          "payment_method": ""
-        },
-        {
-          "date": "2026-04-12 03:09:44",
-          "type": "give",
-          "amount": 5000.0,
-          "note": "BKASH",
-          "purpose": "BKASH",
-          "payment_method": ""
-        },
-        {
-          "date": "2026-04-12 14:15:47",
-          "type": "receive",
-          "amount": 5000.0,
-          "note": "",
-          "purpose": "",
-          "payment_method": ""
-        },
-        {
-          "date": "2026-04-12 14:16:06",
-          "type": "give",
-          "amount": 120.0,
-          "note": "BKASH",
-          "purpose": "BKASH",
-          "payment_method": ""
-        },
-        {
-          "date": "2026-04-12 21:44:25",
-          "type": "receive",
-          "amount": 120.0,
-          "note": "BKASH",
-          "purpose": "BKASH",
-          "payment_method": ""
-        }
-      ],
-      "balance": -2000.0,
-      "phone": "+8801571353588",
-      "access_code": "B1AC2H"
-    },
-    "RUPOK SAHA": {
-      "transactions": [
-        {
-          "date": "2026-04-11 16:46:40",
-          "type": "give",
-          "amount": 3000.0,
-          "note": "BKASH",
-          "purpose": "BKASH",
-          "payment_method": ""
-        },
-        {
-          "date": "2026-04-11 16:46:58",
-          "type": "receive",
-          "amount": 1000.0,
-          "note": "BKASH",
-          "purpose": "BKASH",
-          "payment_method": ""
-        },
-        {
-          "date": "2026-04-12 02:56:34",
-          "type": "receive",
-          "amount": 2000.0,
-          "note": "BKASH",
-          "purpose": "BKASH",
-          "payment_method": ""
-        }
-      ],
-      "balance": 0.0,
-      "phone": "+8801792003315",
-      "access_code": "J5TSG7"
-    },
-    "MAHERAB": {
-      "transactions": [],
-      "balance": 0.0,
-      "phone": "+8801821246344",
-      "access_code": "4ASWO6"
-    },
-    "SANTO DHAR": {
-      "transactions": [
-        {
-          "date": "2026-04-12 23:54:48",
-          "type": "give",
-          "amount": 227.0,
-          "note": "BKASH",
-          "purpose": "BKASH",
-          "payment_method": ""
-        }
-      ],
-      "balance": -227.0,
-      "phone": "+8801304747646",
-      "access_code": "KGXA5D"
-    },
-    "SHAHRIAR REYAD": {
-      "transactions": [],
-      "balance": 0.0,
-      "phone": "+8801641183540",
-      "access_code": "IPOPFY"
-    },
-    "SAYON KUNDU": {
-      "transactions": [],
-      "balance": 0.0,
-      "phone": "+8801609696788",
-      "access_code": "SGAKTQ"
-    }
-  },
   "users": {
     "sourav": {
       "password": "scrypt:32768:8:1$ohjjOQNozKGsU5Mp$148d06c54f1723a274ef34910a6fd1a07c9daf5b4cfcab4ad67ed11e4e4fc46c7c63bf433d18c675a893a7d131acf14f4d42037fcf6eed86cf7b2687e710aead"
     },
     "xyz": {
       "password": "scrypt:32768:8:1$WUrmLIYw8kgAlYdT$09ef935ce8d8ba297d9d1be87d2332c6e62a351633675b9070943983356ce0bab1a7b99d0e9ec9821c7fff7ef8d783bef73deef06e745205dbacc0a00ac467c2"
+    },
+    "ZEN": {
+      "password": "scrypt:32768:8:1$T5rzU9QzsbkxG5Kz$1bc1f5db5f7f448c7575a78cb24a4af3a5fd42fe36cb3ff1f1a848eb765f17efe6a54249369e163a118c88a2a3fa85912a5cc2a920ddc42b826654e47574f138",
+      "friends": {
+        "ANWARUL RAZZAQUE": {
+          "transactions": [
+            {
+              "date": "2026-04-11 16:42:17",
+              "type": "give",
+              "amount": 2000.0,
+              "note": "cash",
+              "purpose": "cash",
+              "payment_method": ""
+            },
+            {
+              "date": "2026-04-12 03:09:44",
+              "type": "give",
+              "amount": 5000.0,
+              "note": "BKASH",
+              "purpose": "BKASH",
+              "payment_method": ""
+            },
+            {
+              "date": "2026-04-12 14:15:47",
+              "type": "receive",
+              "amount": 5000.0,
+              "note": "",
+              "purpose": "",
+              "payment_method": ""
+            },
+            {
+              "date": "2026-04-12 14:16:06",
+              "type": "give",
+              "amount": 120.0,
+              "note": "BKASH",
+              "purpose": "BKASH",
+              "payment_method": ""
+            },
+            {
+              "date": "2026-04-12 21:44:25",
+              "type": "receive",
+              "amount": 120.0,
+              "note": "BKASH",
+              "purpose": "BKASH",
+              "payment_method": ""
+            }
+          ],
+          "balance": -2000.0,
+          "phone": "+8801571353588",
+          "access_code": "B1AC2H"
+        },
+        "RUPOK SAHA": {
+          "transactions": [
+            {
+              "date": "2026-04-11 16:46:40",
+              "type": "give",
+              "amount": 3000.0,
+              "note": "BKASH",
+              "purpose": "BKASH",
+              "payment_method": ""
+            },
+            {
+              "date": "2026-04-11 16:46:58",
+              "type": "receive",
+              "amount": 1000.0,
+              "note": "BKASH",
+              "purpose": "BKASH",
+              "payment_method": ""
+            },
+            {
+              "date": "2026-04-12 02:56:34",
+              "type": "receive",
+              "amount": 2000.0,
+              "note": "BKASH",
+              "purpose": "BKASH",
+              "payment_method": ""
+            }
+          ],
+          "balance": 0.0,
+          "phone": "+8801792003315",
+          "access_code": "J5TSG7"
+        },
+        "MAHERAB": {
+          "transactions": [],
+          "balance": 0.0,
+          "phone": "+8801821246344",
+          "access_code": "4ASWO6"
+        },
+        "SANTO DHAR": {
+          "transactions": [
+            {
+              "date": "2026-04-12 23:54:48",
+              "type": "give",
+              "amount": 227.0,
+              "note": "BKASH",
+              "purpose": "BKASH",
+              "payment_method": ""
+            }
+          ],
+          "balance": -227.0,
+          "phone": "+8801304747646",
+          "access_code": "KGXA5D"
+        },
+        "SHAHRIAR REYAD": {
+          "transactions": [],
+          "balance": 0.0,
+          "phone": "+8801641183540",
+          "access_code": "IPOPFY"
+        },
+        "SAYON KUNDU": {
+          "transactions": [],
+          "balance": 0.0,
+          "phone": "+8801609696788",
+          "access_code": "SGAKTQ"
+        }
+      }
     }
   }
 }

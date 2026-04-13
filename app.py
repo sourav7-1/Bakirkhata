@@ -3,6 +3,7 @@ import json
 import os
 import secrets
 import socket
+import sqlite3
 import string
 from functools import wraps
 from urllib.parse import quote_plus
@@ -22,79 +23,225 @@ if os.getenv("FLASK_ENV") == "production":
     app.config["SESSION_COOKIE_SECURE"] = True
 
 DATA_FILE = "data.json"
+DATABASE_FILE = "data.db"
 VALID_USERNAME = "ZEN"
 VALID_PASSWORD = "zen2026"
 
 
-def load_data():
+def get_db():
+    conn = sqlite3.connect(DATABASE_FILE, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def normalize_json_data(data):
+    users = data.get("users", {}) or {}
+    legacy_friends = data.get("friends")
+
+    if legacy_friends:
+        default_user = users.setdefault(
+            VALID_USERNAME,
+            {"password": generate_password_hash(VALID_PASSWORD), "friends": {}},
+        )
+        default_user.setdefault("friends", {}).update(legacy_friends)
+
+    orphan_users = {
+        k: v
+        for k, v in data.items()
+        if k not in ("users", "friends") and isinstance(v, dict) and "password" in v
+    }
+    for username, record in orphan_users.items():
+        users.setdefault(username, record)
+
+    return users
+
+
+def migrate_json_to_db(db):
     if not os.path.exists(DATA_FILE):
-        return {"users": {}}
+        return
+
     with open(DATA_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    migrated = False
-    legacy_friends = data.pop("friends", None)
-    users = data.setdefault("users", {})
+    users = normalize_json_data(data)
+    for username, user in users.items():
+        password = user.get("password")
+        if not password:
+            continue
+        db.execute(
+            "INSERT OR IGNORE INTO users (username, password) VALUES (?, ?)",
+            (username, password),
+        )
 
-    # Migrate legacy user records that were stored at the root level by older versions.
-    orphan_users = {k: v for k, v in list(data.items()) if k != "users" and isinstance(v, dict) and "password" in v}
-    for username, record in orphan_users.items():
-        users.setdefault(username, record)
-        data.pop(username, None)
-        migrated = True
-
-    if legacy_friends:
-        default_user = users.setdefault(VALID_USERNAME, {"password": generate_password_hash(VALID_PASSWORD), "friends": {}})
-        default_user.setdefault("friends", {}).update(legacy_friends)
-        migrated = True
-
-    if migrated:
-        save_data(data)
-
-    for user in users.values():
-        user.setdefault("friends", {})
-        for friend in user.get("friends", {}).values():
-            if "balance" not in friend:
-                friend["balance"] = calculate_balance(friend)
-            if "phone" not in friend:
-                friend["phone"] = ""
-            if "access_code" not in friend:
-                friend["access_code"] = generate_access_code()
+        for friend_name, friend in (user.get("friends") or {}).items():
+            phone = friend.get("phone", "")
+            access_code = friend.get("access_code") or generate_access_code(8)
+            db.execute(
+                "INSERT OR IGNORE INTO friends (username, name, phone, access_code) VALUES (?, ?, ?, ?)",
+                (username, friend_name, phone, access_code),
+            )
+            friend_row = db.execute(
+                "SELECT id FROM friends WHERE username = ? AND name = ?",
+                (username, friend_name),
+            ).fetchone()
+            if not friend_row:
+                continue
+            friend_id = friend_row["id"]
             for tx in friend.get("transactions", []):
-                if "purpose" not in tx:
-                    tx["purpose"] = tx.get("note", "")
-                if "payment_method" not in tx:
-                    tx["payment_method"] = ""
-    return data
+                db.execute(
+                    "INSERT INTO transactions (friend_id, date, type, amount, purpose, note, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        friend_id,
+                        tx.get("date", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+                        tx.get("type", "give"),
+                        float(tx.get("amount", 0) or 0),
+                        tx.get("purpose", tx.get("note", "")),
+                        tx.get("note", ""),
+                        tx.get("payment_method", ""),
+                    ),
+                )
+    db.commit()
 
 
-def save_data(data):
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+def init_db():
+    with get_db() as db:
+        db.execute(
+            "CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT NOT NULL)"
+        )
+        db.execute(
+            "CREATE TABLE IF NOT EXISTS friends (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL, name TEXT NOT NULL, phone TEXT DEFAULT '', access_code TEXT NOT NULL, UNIQUE(username, name), FOREIGN KEY(username) REFERENCES users(username) ON DELETE CASCADE)"
+        )
+        db.execute(
+            "CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, friend_id INTEGER NOT NULL, date TEXT NOT NULL, type TEXT NOT NULL, amount REAL NOT NULL, purpose TEXT DEFAULT '', note TEXT DEFAULT '', payment_method TEXT DEFAULT '', FOREIGN KEY(friend_id) REFERENCES friends(id) ON DELETE CASCADE)"
+        )
+        db.commit()
+
+        if not db.execute("SELECT 1 FROM users LIMIT 1").fetchone():
+            migrate_json_to_db(db)
+
+        db.execute(
+            "INSERT OR IGNORE INTO users (username, password) VALUES (?, ?)",
+            (VALID_USERNAME, generate_password_hash(VALID_PASSWORD)),
+        )
+        db.commit()
 
 
-def get_user_record(data, username, create=False):
-    user = data["users"].get(username)
-    if user is None and create:
-        user = data["users"][username] = {"password": "", "friends": {}}
-    if user is not None:
-        user.setdefault("friends", {})
-    return user
+init_db()
 
 
-def get_user_friend(data, username, name):
-    user = get_user_record(data, username)
-    if not user:
-        return None
-    return user["friends"].get(name)
+def query_user(username):
+    with get_db() as db:
+        row = db.execute("SELECT username, password FROM users WHERE username = ?", (username,)).fetchone()
+        return dict(row) if row else None
+
+
+def create_user(username, password_hash):
+    with get_db() as db:
+        try:
+            db.execute(
+                "INSERT INTO users (username, password) VALUES (?, ?)",
+                (username, password_hash),
+            )
+            db.commit()
+            return True
+        except sqlite3.IntegrityError:
+            return False
+
+
+def get_user_friends(username):
+    friends = []
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT id, name, phone, access_code FROM friends WHERE username = ? ORDER BY name",
+            (username,),
+        ).fetchall()
+        for friend_row in rows:
+            friend = dict(friend_row)
+            friend["transactions"] = [dict(tx) for tx in db.execute(
+                "SELECT date, type, amount, purpose, note, payment_method FROM transactions WHERE friend_id = ? ORDER BY date",
+                (friend["id"],),
+            ).fetchall()]
+            friend["balance"] = calculate_balance(friend)
+            friends.append(friend)
+    return friends
+
+
+def get_user_friend(username, name):
+    with get_db() as db:
+        friend_row = db.execute(
+            "SELECT id, name, phone, access_code FROM friends WHERE username = ? AND name = ?",
+            (username, name),
+        ).fetchone()
+        if not friend_row:
+            return None
+        friend = dict(friend_row)
+        friend["transactions"] = [dict(tx) for tx in db.execute(
+            "SELECT date, type, amount, purpose, note, payment_method FROM transactions WHERE friend_id = ? ORDER BY date",
+            (friend["id"],),
+        ).fetchall()]
+        friend["balance"] = calculate_balance(friend)
+        return friend
+
+
+def get_friend_with_owner(name, code):
+    with get_db() as db:
+        row = db.execute(
+            "SELECT friends.id AS id, friends.name AS name, friends.phone AS phone, friends.access_code AS access_code, users.username AS owner "
+            "FROM friends JOIN users ON friends.username = users.username "
+            "WHERE friends.name = ? AND friends.access_code = ?",
+            (name, code),
+        ).fetchone()
+        if not row:
+            return None, None
+        friend = dict(row)
+        friend["transactions"] = [dict(tx) for tx in db.execute(
+            "SELECT date, type, amount, purpose, note, payment_method FROM transactions WHERE friend_id = ? ORDER BY date",
+            (friend["id"],),
+        ).fetchall()]
+        friend["balance"] = calculate_balance(friend)
+        return friend["owner"], friend
+
+
+def add_friend_to_db(username, name, phone=""):
+    with get_db() as db:
+        access_code = generate_access_code(8)
+        db.execute(
+            "INSERT INTO friends (username, name, phone, access_code) VALUES (?, ?, ?, ?)",
+            (username, name, phone, access_code),
+        )
+        db.commit()
+
+
+def add_transaction_to_db(username, name, transaction_type, amount, purpose, payment_method):
+    with get_db() as db:
+        friend_row = db.execute(
+            "SELECT id FROM friends WHERE username = ? AND name = ?",
+            (username, name),
+        ).fetchone()
+        if not friend_row:
+            return False
+        friend_id = friend_row["id"]
+        date_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        db.execute(
+            "INSERT INTO transactions (friend_id, date, type, amount, purpose, note, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (friend_id, date_str, transaction_type, amount, purpose, purpose, payment_method),
+        )
+        db.commit()
+        return True
+
+
+def delete_friend_from_db(username, name):
+    with get_db() as db:
+        db.execute(
+            "DELETE FROM friends WHERE username = ? AND name = ?",
+            (username, name),
+        )
+        db.commit()
 
 
 def find_friend_owner(data, name, code):
-    for owner, user in data.get("users", {}).items():
-        friend = user.get("friends", {}).get(name)
-        if friend and friend.get("access_code") == code:
-            return owner, friend
-    return None, None
+    # Compatibility wrapper for older code paths.
+    return get_friend_with_owner(name, code)
 
 
 def is_logged_in():
@@ -167,53 +314,16 @@ def build_phone_link(channel, phone, message):
     return None
 
 
-def add_friend_to_data(data, username, name, phone=""):
-    user = get_user_record(data, username, create=True)
-    user["friends"][name] = {
-        "transactions": [],
-        "balance": 0.0,
-        "phone": phone,
-        "access_code": generate_access_code(8),
-    }
-    save_data(data)
-
-
-def add_transaction(data, username, name, transaction_type, amount, purpose, payment_method):
-    friend = get_user_friend(data, username, name)
-    if not friend:
-        return
-
-    date_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    transaction = {
-        "date": date_str,
-        "type": transaction_type,
-        "amount": amount,
-        "purpose": purpose,
-        "payment_method": payment_method,
-        "note": purpose,
-    }
-    friend["transactions"].append(transaction)
-
-    if transaction_type in ("borrow", "receive"):
-        friend["balance"] += amount
-    else:
-        friend["balance"] -= amount
-
-    save_data(data)
-
-
 @app.route("/")
 @login_required
 def index():
-    data = load_data()
-    user = get_user_record(data, session["user"], create=True)
     friends = []
-    for name, friend in sorted(user["friends"].items()):
+    for friend in get_user_friends(session["user"]):
         friends.append({
-            "name": name,
+            "name": friend["name"],
             "phone": friend.get("phone", ""),
-            "balance": calculate_balance(friend),
-            "status": "owes you" if calculate_balance(friend) > 0 else "settled" if calculate_balance(friend) == 0 else "you owe",
+            "balance": friend["balance"],
+            "status": "owes you" if friend["balance"] > 0 else "settled" if friend["balance"] == 0 else "you owe",
         })
     return render_template("index.html", friends=friends)
 
@@ -227,13 +337,12 @@ def add_friend():
         flash("Friend name cannot be empty.", "error")
         return redirect(url_for("index"))
 
-    data = load_data()
-    user = get_user_record(data, session["user"], create=True)
-    if name in user["friends"]:
+    existing = get_user_friend(session["user"], name)
+    if existing:
         flash("This friend already exists.", "error")
         return redirect(url_for("index"))
 
-    add_friend_to_data(data, session["user"], name, phone)
+    add_friend_to_db(session["user"], name, phone)
     flash(f"Added friend '{name}'.", "success")
     return redirect(url_for("index"))
 
@@ -241,13 +350,12 @@ def add_friend():
 @app.route("/friend/<name>")
 @login_required
 def friend_detail(name):
-    data = load_data()
-    friend = get_user_friend(data, session["user"], name)
+    friend = get_user_friend(session["user"], name)
     if not friend:
         flash("Friend not found.", "error")
         return redirect(url_for("index"))
 
-    balance = calculate_balance(friend)
+    balance = friend["balance"]
     message_text = session.pop("message_text", None)
     if message_text is None:
         message_text = session.pop("reminder_text", None)
@@ -269,8 +377,7 @@ def friend_login():
     if request.method == "POST":
         name = request.form.get("name", "").strip()
         code = request.form.get("code", "").strip().upper()
-        data = load_data()
-        owner, friend = find_friend_owner(data, name, code)
+        owner, friend = get_friend_with_owner(name, code)
         if friend:
             session.permanent = True
             session["friend_owner"] = owner
@@ -297,14 +404,13 @@ def friend_required(view):
 def friend_portal():
     owner = session.get("friend_owner")
     name = session.get("friend_user")
-    data = load_data()
-    friend = data.get("users", {}).get(owner, {}).get("friends", {}).get(name)
+    friend = get_user_friend(owner, name)
     if not friend:
         session.pop("friend_owner", None)
         session.pop("friend_user", None)
         return redirect(url_for("friend_login"))
 
-    balance = calculate_balance(friend)
+    balance = friend["balance"]
     return render_template(
         "friend_portal.html",
         name=name,
@@ -325,8 +431,7 @@ def friend_logout():
 @app.route("/friend/<name>/transaction", methods=["POST"])
 @login_required
 def add_friend_transaction(name):
-    data = load_data()
-    friend = get_user_friend(data, session["user"], name)
+    friend = get_user_friend(session["user"], name)
     if not friend:
         flash("Friend not found.", "error")
         return redirect(url_for("index"))
@@ -346,7 +451,7 @@ def add_friend_transaction(name):
         flash("Amount must be greater than zero.", "error")
         return redirect(url_for("friend_detail", name=name))
 
-    add_transaction(data, session["user"], name, transaction_type, amount, purpose, payment_method)
+    add_transaction_to_db(session["user"], name, transaction_type, amount, purpose, payment_method)
 
     if transaction_type == "give":
         flash(f"Recorded that you gave {amount:.2f} to {name}.", "success")
@@ -361,11 +466,9 @@ def add_friend_transaction(name):
 @app.route("/friend/<name>/delete", methods=["POST"])
 @login_required
 def delete_friend(name):
-    data = load_data()
-    user = get_user_record(data, session["user"])
-    if user and name in user["friends"]:
-        del user["friends"][name]
-        save_data(data)
+    friend = get_user_friend(session["user"], name)
+    if friend:
+        delete_friend_from_db(session["user"], name)
         flash(f"Deleted friend '{name}'.", "success")
     else:
         flash("Friend not found.", "error")
@@ -380,8 +483,7 @@ def login():
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "").strip()
-        data = load_data()
-        user = data["users"].get(username)
+        user = query_user(username)
         valid_user = (username == VALID_USERNAME and password == VALID_PASSWORD) or (
             user and check_password_hash(user["password"], password)
         )
@@ -420,16 +522,11 @@ def signup():
             flash("That username is reserved.", "error")
             return redirect(url_for("signup"))
 
-        data = load_data()
-        if username in data["users"]:
+        if query_user(username):
             flash("This username is already taken.", "error")
             return redirect(url_for("signup"))
 
-        data["users"][username] = {
-            "password": generate_password_hash(password),
-            "friends": {}
-        }
-        save_data(data)
+        create_user(username, generate_password_hash(password))
         session.permanent = True
         session["user"] = username
         flash("Account created and logged in successfully.", "success")
@@ -448,13 +545,12 @@ def logout():
 @app.route("/friend/<name>/reminder", methods=["POST"])
 @login_required
 def send_reminder(name):
-    data = load_data()
-    friend = get_user_friend(data, session["user"], name)
+    friend = get_user_friend(session["user"], name)
     if not friend:
         flash("Friend not found.", "error")
         return redirect(url_for("index"))
 
-    balance = calculate_balance(friend)
+    balance = friend["balance"]
     if balance == 0:
         message_text = f"{name} has no pending balance right now."
     elif balance > 0:
@@ -476,13 +572,12 @@ def send_reminder(name):
 @app.route("/friend/<name>/balance-update", methods=["POST"])
 @login_required
 def send_balance_update(name):
-    data = load_data()
-    friend = get_user_friend(data, session["user"], name)
+    friend = get_user_friend(session["user"], name)
     if not friend:
         flash("Friend not found.", "error")
         return redirect(url_for("index"))
 
-    balance = calculate_balance(friend)
+    balance = friend["balance"]
     if balance == 0:
         message_text = (
             f"Dear {name},\n\nYour balance is currently settled. "
@@ -507,8 +602,7 @@ def send_balance_update(name):
 @app.route("/friend/<name>/send-via/<channel>", methods=["POST"])
 @login_required
 def send_via_phone(name, channel):
-    data = load_data()
-    friend = get_user_friend(data, session["user"], name)
+    friend = get_user_friend(session["user"], name)
     if not friend:
         flash("Friend not found.", "error")
         return redirect(url_for("index"))
@@ -518,7 +612,7 @@ def send_via_phone(name, channel):
         flash("No phone number saved for this friend.", "error")
         return redirect(url_for("friend_detail", name=name))
 
-    balance = calculate_balance(friend)
+    balance = friend["balance"]
     if balance == 0:
         message = (
             f"Dear {name},\n\nYour balance is currently settled. "
@@ -546,8 +640,7 @@ def send_via_phone(name, channel):
 @app.route("/friend-access-info/<name>", methods=["POST"])
 @login_required
 def send_access_info(name):
-    data = load_data()
-    friend = get_user_friend(data, session["user"], name)
+    friend = get_user_friend(session["user"], name)
     if not friend:
         flash("Friend not found.", "error")
         return redirect(url_for("index"))
