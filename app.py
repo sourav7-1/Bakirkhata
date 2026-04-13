@@ -23,9 +23,13 @@ if os.getenv("FLASK_ENV") == "production":
     app.config["SESSION_COOKIE_SECURE"] = True
 
 DATA_FILE = "data.json"
-DATABASE_FILE = "data.db"
+DATABASE_FILE = os.getenv("DATABASE_FILE", "data.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "")
 VALID_USERNAME = "ZEN"
 VALID_PASSWORD = "zen2026"
+
+if DATABASE_URL.startswith("sqlite:///"):
+    DATABASE_FILE = DATABASE_URL.replace("sqlite:///", "", 1)
 
 
 def get_db():
@@ -645,12 +649,12 @@ def send_access_info(name):
         flash("Friend not found.", "error")
         return redirect(url_for("index"))
 
-    host_ip = get_local_ip()
+    login_url = url_for("friend_login", _external=True)
     message = (
         f"Hello {name},\n\nYou can access your ZEN balance portal with the following details:\n"
         f"Name: {name}\n"
         f"Access code: {friend.get('access_code')}\n\n"
-        f"Visit: http://{host_ip}:5000/friend-login\n\nThank you."
+        f"Visit: {login_url}\n\nThank you."
     )
 
     phone = friend.get("phone", "").strip()
@@ -668,4 +672,6 @@ def send_access_info(name):
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    port = int(os.getenv("PORT", 5000))
+    debug = os.getenv("FLASK_DEBUG", "0") == "1"
+    app.run(host="0.0.0.0", port=port, debug=debug)

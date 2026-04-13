@@ -40,6 +40,23 @@ python app.py
 http://127.0.0.1:5000
 ```
 
+---
+
+## Deploying to Render
+
+This project is ready for Render deployment using `gunicorn`.
+
+- A `Procfile` is included:
+
+```text
+web: gunicorn app:app --log-file -
+```
+
+- When deploying, Render can use the local SQLite database file `data.db` by default.
+- If you want to override the database location, set the environment variable `DATABASE_FILE` or `DATABASE_URL`.
+
+For local development, the app still runs with `python app.py`.
+
 ## Usage
 
 ### Admin / owner login
